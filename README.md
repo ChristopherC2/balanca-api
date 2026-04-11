@@ -67,6 +67,12 @@ Testes unitários implementados com:
 * Mockito
 * Spring WebMvcTest
 
+## 🧪 Testes de Integração
+Para validar o fluxo completo da API (da pesagem ao relatório), você pode executar o script automatizado:
+```bash
+./teste_api.sh
+```
+
 ## 👨‍💻 Autor
 
 Christopher Castro
