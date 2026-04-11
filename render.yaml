@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: balanca-api
+    env: docker
+    plan: free
+    region: ohio
+    healthCheckPath: /swagger-ui.html
+    envVars:
+      - key: JAVA_OPTS
+        value: -Xmx512m
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
