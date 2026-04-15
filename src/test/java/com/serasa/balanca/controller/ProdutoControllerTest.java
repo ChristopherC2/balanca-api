@@ -25,9 +25,7 @@ public class ProdutoControllerTest {
 
     @Test
     public void deveCadastrarGraoComSucesso() {
-        TipoGraoRequest request = new TipoGraoRequest();
-        request.setNome("Milho");
-        request.setPrecoPorKg(1.80);
+        TipoGraoRequest request = new TipoGraoRequest("Milho", 1.80);
 
         TipoGrao graoSalvo = TipoGrao.builder()
                 .id(1L)
@@ -41,9 +39,9 @@ public class ProdutoControllerTest {
 
         Assert.assertEquals(HttpStatus.CREATED, response.getStatusCode());
         Assert.assertNotNull(response.getBody());
-        Assert.assertEquals(Long.valueOf(1L), response.getBody().getId());
-        Assert.assertEquals("Milho", response.getBody().getNome());
-        Assert.assertEquals(Double.valueOf(1.80), response.getBody().getPrecoPorKg());
+        Assert.assertEquals(Long.valueOf(1L), response.getBody().id());
+        Assert.assertEquals("Milho", response.getBody().nome());
+        Assert.assertEquals(Double.valueOf(1.80), response.getBody().precoPorKg());
 
         Mockito.verify(graoRepo, Mockito.times(1)).save(Mockito.any(TipoGrao.class));
     }

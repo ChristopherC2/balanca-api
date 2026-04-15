@@ -1,5 +1,7 @@
 package com.serasa.balanca.service;
 
+import com.serasa.balanca.config.BalancaProperties;
+import com.serasa.balanca.exception.RecursoNaoEncontradoException;
 import com.serasa.balanca.mapper.TransacaoTransporteMapper;
 import com.serasa.balanca.model.entities.*;
 import com.serasa.balanca.model.requests.TransacaoTransporteRequest;
@@ -8,6 +10,7 @@ import com.serasa.balanca.repository.BalancaRepository;
 import com.serasa.balanca.repository.CaminhaoRepository;
 import com.serasa.balanca.repository.TransacaoTransporteRepository;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -15,10 +18,10 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalDouble;
 
 @RunWith(MockitoJUnitRunner.class)
 public class BalancaServiceTest {
@@ -28,29 +31,35 @@ public class BalancaServiceTest {
 
     @Mock
     private TransacaoTransporteRepository transacaoRepo;
-
     @Mock
     private CaminhaoRepository caminhaoRepo;
-
     @Mock
     private BalancaRepository balancaRepo;
-
     @Mock
     private TransacaoTransporteMapper transacaoTransporteMapper;
+    @Mock
+    private PesagemBuffer pesagemBuffer;
+    @Mock
+    private BalancaProperties props;
+
+    @Before
+    public void configurarProps() {
+        Mockito.when(props.getTransacao()).thenReturn(new BalancaProperties.Transacao());
+    }
 
     @Test
     public void deveProcessarComIdempotenciaApenasUmaVez() {
-        TransacaoTransporteRequest request = new TransacaoTransporteRequest();
-        request.setPlate("ABC1234");
-        request.setWeight(50000.0);
-        request.setBalancaId("BAL-01");
-
+        TransacaoTransporteRequest request = new TransacaoTransporteRequest("BAL-01", "ABC1234", 50000.0);
         String chave = "chave-unica";
 
+        Mockito.when(pesagemBuffer.registrarLeitura(Mockito.anyString(), Mockito.anyDouble()))
+                .thenReturn(OptionalDouble.empty());
+
         balancaService.processarComIdempotencia(request, chave);
         balancaService.processarComIdempotencia(request, chave);
 
-        Mockito.verify(balancaRepo, Mockito.atMost(1)).findById(Mockito.anyString());
+        Mockito.verify(pesagemBuffer, Mockito.times(1))
+                .registrarLeitura(Mockito.anyString(), Mockito.anyDouble());
     }
 
     @Test
@@ -70,15 +79,11 @@ public class BalancaServiceTest {
 
         Mockito.when(balancaRepo.findById(idBalanca)).thenReturn(Optional.of(balanca));
         Mockito.when(caminhaoRepo.findById(placa)).thenReturn(Optional.of(caminhao));
+        Mockito.when(pesagemBuffer.registrarLeitura(placa, 30000.0))
+                .thenReturn(OptionalDouble.of(30000.0));
 
-        for (int i = 0; i < 5; i++) {
-            TransacaoTransporteRequest request = new TransacaoTransporteRequest();
-            request.setPlate(placa);
-            request.setWeight(30000.0);
-            request.setBalancaId(idBalanca);
-
-            balancaService.processarComIdempotencia(request, "key-" + i);
-        }
+        TransacaoTransporteRequest request = new TransacaoTransporteRequest(idBalanca, placa, 30000.0);
+        balancaService.processarComIdempotencia(request, "key-1");
 
         Mockito.verify(transacaoRepo, Mockito.times(1)).save(Mockito.any(TransacaoTransporte.class));
     }
@@ -86,9 +91,9 @@ public class BalancaServiceTest {
     @Test
     public void deveCalcularValoresCorretamenteNaEfetivacao() {
         String placa = "ABC1234";
-        Double pesoBruto = 50000.0;
-        Double tara = 20000.0;
-        Double precoKg = 2.0;
+        double pesoBruto = 50000.0;
+        double tara = 20000.0;
+        double precoKg = 2.0;
 
         Caminhao caminhao = Caminhao.builder()
                 .placa(placa)
@@ -99,19 +104,16 @@ public class BalancaServiceTest {
 
         Mockito.when(balancaRepo.findById("BAL-01")).thenReturn(Optional.of(Balanca.builder().id("BAL-01").build()));
         Mockito.when(caminhaoRepo.findById(placa)).thenReturn(Optional.of(caminhao));
+        Mockito.when(pesagemBuffer.registrarLeitura(placa, pesoBruto))
+                .thenReturn(OptionalDouble.of(pesoBruto));
 
-        for (int i = 0; i < 5; i++) {
-            TransacaoTransporteRequest request = new TransacaoTransporteRequest();
-            request.setPlate(placa);
-            request.setWeight(pesoBruto);
-            request.setBalancaId("BAL-01");
-            balancaService.processarComIdempotencia(request, "idempotencia-" + i);
-        }
+        TransacaoTransporteRequest request = new TransacaoTransporteRequest("BAL-01", placa, pesoBruto);
+        balancaService.processarComIdempotencia(request, "idempotencia-1");
 
         Mockito.verify(transacaoRepo).save(Mockito.argThat(t -> {
-            Double pesoLiquidoEsperado = pesoBruto - tara;
-            Double custoEsperado = pesoLiquidoEsperado * precoKg;
-            Double lucroEsperado = custoEsperado * 0.15;
+            double pesoLiquidoEsperado = pesoBruto - tara;
+            double custoEsperado = pesoLiquidoEsperado * precoKg;
+            double lucroEsperado = custoEsperado * 0.15;
 
             return t.getPesoLiquido().equals(pesoLiquidoEsperado) &&
                     t.getCusto().equals(custoEsperado) &&
@@ -119,31 +121,28 @@ public class BalancaServiceTest {
         }));
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test(expected = RecursoNaoEncontradoException.class)
     public void deveLancarExcecaoQuandoBalancaNaoCadastrada() {
         String placa = "ABC1234";
         Mockito.when(balancaRepo.findById("ERR")).thenReturn(Optional.empty());
+        Mockito.when(pesagemBuffer.registrarLeitura(placa, 50000.0))
+                .thenReturn(OptionalDouble.of(50000.0));
 
-        TransacaoTransporteRequest request = new TransacaoTransporteRequest();
-        request.setPlate(placa);
-        request.setWeight(50000.0);
-        request.setBalancaId("ERR");
-
-        for (int i = 0; i < 5; i++) {
-            balancaService.processarComIdempotencia(request, "err-" + i);
-        }
+        TransacaoTransporteRequest request = new TransacaoTransporteRequest("ERR", placa, 50000.0);
+        balancaService.processarComIdempotencia(request, "err-1");
     }
 
     @Test
     public void deveFiltrarPorFilialNoRelatorio() {
         String filial = "Matriz";
-        LocalDateTime inicio = LocalDateTime.now().withHour(0).withMinute(0);
-        LocalDateTime fim = LocalDateTime.now().withHour(23).withMinute(59);
 
         TransacaoTransporte t = new TransacaoTransporte();
+        TransacaoTransporteResponse mockResponse = new TransacaoTransporteResponse(
+                null, filial, null, null, null, null, null, null, null, null, null
+        );
         Mockito.when(transacaoRepo.findByFilialNomeAndDataFimBetween(Mockito.eq(filial), Mockito.any(), Mockito.any()))
                 .thenReturn(Arrays.asList(t));
-        Mockito.when(transacaoTransporteMapper.toResponse(t)).thenReturn(new TransacaoTransporteResponse());
+        Mockito.when(transacaoTransporteMapper.toResponse(t)).thenReturn(mockResponse);
 
         List<TransacaoTransporteResponse> resultado = balancaService.listarRelatorio(filial, null, null, null, null);
 
@@ -156,9 +155,12 @@ public class BalancaServiceTest {
         String placa = "ABC1234";
 
         TransacaoTransporte t = new TransacaoTransporte();
+        TransacaoTransporteResponse mockResponse = new TransacaoTransporteResponse(
+                placa, null, null, null, null, null, null, null, null, null, null
+        );
         Mockito.when(transacaoRepo.findByCaminhaoPlacaAndDataFimBetween(Mockito.eq(placa), Mockito.any(), Mockito.any()))
                 .thenReturn(Arrays.asList(t));
-        Mockito.when(transacaoTransporteMapper.toResponse(t)).thenReturn(new TransacaoTransporteResponse());
+        Mockito.when(transacaoTransporteMapper.toResponse(t)).thenReturn(mockResponse);
 
         List<TransacaoTransporteResponse> resultado = balancaService.listarRelatorio(null, placa, null, null, null);
 
@@ -171,9 +173,12 @@ public class BalancaServiceTest {
         String grao = "Soja";
 
         TransacaoTransporte t = new TransacaoTransporte();
+        TransacaoTransporteResponse mockResponse = new TransacaoTransporteResponse(
+                null, null, grao, null, null, null, null, null, null, null, null
+        );
         Mockito.when(transacaoRepo.findByTipoGraoNomeAndDataFimBetween(Mockito.eq(grao), Mockito.any(), Mockito.any()))
                 .thenReturn(Arrays.asList(t));
-        Mockito.when(transacaoTransporteMapper.toResponse(t)).thenReturn(new TransacaoTransporteResponse());
+        Mockito.when(transacaoTransporteMapper.toResponse(t)).thenReturn(mockResponse);
 
         List<TransacaoTransporteResponse> resultado = balancaService.listarRelatorio(null, null, grao, null, null);
 
@@ -184,9 +189,12 @@ public class BalancaServiceTest {
     @Test
     public void deveFiltrarApenasPorDataQuandoParametrosForemNulos() {
         TransacaoTransporte t = new TransacaoTransporte();
+        TransacaoTransporteResponse mockResponse = new TransacaoTransporteResponse(
+                null, null, null, null, null, null, null, null, null, null, null
+        );
         Mockito.when(transacaoRepo.findByDataFimBetween(Mockito.any(), Mockito.any()))
                 .thenReturn(Arrays.asList(t));
-        Mockito.when(transacaoTransporteMapper.toResponse(t)).thenReturn(new TransacaoTransporteResponse());
+        Mockito.when(transacaoTransporteMapper.toResponse(t)).thenReturn(mockResponse);
 
         List<TransacaoTransporteResponse> resultado = balancaService.listarRelatorio(null, null, null, null, null);
 

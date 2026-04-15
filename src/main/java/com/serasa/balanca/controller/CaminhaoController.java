@@ -1,5 +1,6 @@
 package com.serasa.balanca.controller;
 
+import com.serasa.balanca.exception.RecursoNaoEncontradoException;
 import com.serasa.balanca.model.entities.Caminhao;
 import com.serasa.balanca.model.entities.Filial;
 import com.serasa.balanca.model.entities.TipoGrao;
@@ -16,7 +17,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/caminhoes")
@@ -29,15 +29,15 @@ public class CaminhaoController {
 
     @PostMapping("")
     public ResponseEntity<CaminhaoResponse> cadastrarCaminhao(@RequestBody CaminhaoRequest request) {
-        Filial filial = filialRepo.findById(request.getFilialId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Filial não encontrada"));
+        Filial filial = filialRepo.findById(request.filialId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Filial não encontrada: " + request.filialId()));
 
-        TipoGrao grao = graoRepo.findById(request.getGraoId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Grão não encontrado"));
+        TipoGrao grao = graoRepo.findById(request.graoId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Grão não encontrado: " + request.graoId()));
 
         Caminhao caminhao = Caminhao.builder()
-                .placa(request.getPlaca())
-                .tara(request.getTara())
+                .placa(request.placa())
+                .tara(request.tara())
                 .filialPadrao(filial)
                 .graoPadrao(grao)
                 .build();
@@ -45,12 +45,12 @@ public class CaminhaoController {
         Caminhao salvo = caminhaoRepo.save(caminhao);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
-                CaminhaoResponse.builder()
-                        .placa(salvo.getPlaca())
-                        .tara(salvo.getTara())
-                        .filialNome(salvo.getFilialPadrao().getNome())
-                        .graoNome(salvo.getGraoPadrao().getNome())
-                        .build()
+                new CaminhaoResponse(
+                        salvo.getPlaca(),
+                        salvo.getTara(),
+                        salvo.getFilialPadrao().getNome(),
+                        salvo.getGraoPadrao().getNome()
+                )
         );
     }
 }

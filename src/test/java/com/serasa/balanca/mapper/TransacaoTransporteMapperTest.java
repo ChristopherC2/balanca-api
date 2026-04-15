@@ -46,14 +46,14 @@ public class TransacaoTransporteMapperTest {
         TransacaoTransporteResponse response = mapper.toResponse(transacao);
 
         Assert.assertNotNull(response);
-        Assert.assertEquals("ABC1234", response.getPlacaCaminhao());
-        Assert.assertEquals("Filial MA", response.getNomeFilial());
-        Assert.assertEquals("Soja", response.getNomeTipoGrao());
-        Assert.assertEquals("BAL-01", response.getIdBalanca());
-        Assert.assertEquals(Double.valueOf(50000.0), response.getPesoBruto());
-        Assert.assertEquals(Double.valueOf(35000.0), response.getPesoLiquido());
-        Assert.assertEquals(Double.valueOf(13125.0), response.getLucro());
-        Assert.assertEquals(agora, response.getDataFim());
+        Assert.assertEquals("ABC1234", response.placaCaminhao());
+        Assert.assertEquals("Filial MA", response.nomeFilial());
+        Assert.assertEquals("Soja", response.nomeTipoGrao());
+        Assert.assertEquals("BAL-01", response.idBalanca());
+        Assert.assertEquals(Double.valueOf(50000.0), response.pesoBruto());
+        Assert.assertEquals(Double.valueOf(35000.0), response.pesoLiquido());
+        Assert.assertEquals(Double.valueOf(13125.0), response.lucro());
+        Assert.assertEquals(agora, response.dataFim());
     }
 
     @Test

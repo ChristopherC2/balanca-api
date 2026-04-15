@@ -1,5 +1,6 @@
 package com.serasa.balanca.controller;
 
+import com.serasa.balanca.exception.RecursoNaoEncontradoException;
 import com.serasa.balanca.model.entities.Caminhao;
 import com.serasa.balanca.model.entities.Filial;
 import com.serasa.balanca.model.entities.TipoGrao;
@@ -17,7 +18,6 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
@@ -36,12 +36,7 @@ public class CaminhaoControllerTest {
 
     @Test
     public void deveCadastrarCaminhaoComSucesso() {
-
-        CaminhaoRequest request = new CaminhaoRequest();
-        request.setPlaca("ABC1234");
-        request.setTara(15000.0);
-        request.setFilialId(1L);
-        request.setGraoId(1L);
+        CaminhaoRequest request = new CaminhaoRequest("ABC1234", 15000.0, 1L, 1L);
 
         Filial filialMock = Filial.builder().id(1L).nome("Filial Sao Luis").build();
         TipoGrao graoMock = TipoGrao.builder().id(1L).nome("Soja").build();
@@ -61,16 +56,14 @@ public class CaminhaoControllerTest {
 
         Assert.assertEquals(HttpStatus.CREATED, response.getStatusCode());
         Assert.assertNotNull(response.getBody());
-        Assert.assertEquals("ABC1234", response.getBody().getPlaca());
-        Assert.assertEquals("Filial Sao Luis", response.getBody().getFilialNome());
-        Assert.assertEquals("Soja", response.getBody().getGraoNome());
+        Assert.assertEquals("ABC1234", response.getBody().placa());
+        Assert.assertEquals("Filial Sao Luis", response.getBody().filialNome());
+        Assert.assertEquals("Soja", response.getBody().graoNome());
     }
 
-    @Test(expected = ResponseStatusException.class)
+    @Test(expected = RecursoNaoEncontradoException.class)
     public void deveLancarExcecaoQuandoFilialNaoExistir() {
-
-        CaminhaoRequest request = new CaminhaoRequest();
-        request.setFilialId(99L);
+        CaminhaoRequest request = new CaminhaoRequest(null, null, 99L, null);
 
         Mockito.when(filialRepo.findById(99L)).thenReturn(Optional.empty());
 

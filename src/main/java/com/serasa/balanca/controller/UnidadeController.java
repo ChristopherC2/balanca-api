@@ -27,37 +27,30 @@ public class UnidadeController {
 
     @PostMapping("/balancas")
     public ResponseEntity<BalancaResponse> cadastrarBalanca(@RequestBody BalancaRequest request) {
-
         Balanca balanca = Balanca.builder()
-                .id(request.getId())
-                .modelo(request.getModelo())
-                .localizacao(request.getLocalizacao())
+                .id(request.id())
+                .modelo(request.modelo())
+                .localizacao(request.localizacao())
                 .build();
 
         Balanca salva = balancaRepo.save(balanca);
 
-        BalancaResponse response = BalancaResponse.builder()
-                .id(salva.getId())
-                .modelo(salva.getModelo())
-                .localizacao(salva.getLocalizacao())
-                .build();
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                new BalancaResponse(salva.getId(), salva.getModelo(), salva.getLocalizacao())
+        );
     }
 
     @PostMapping("/filiais")
     public ResponseEntity<FilialResponse> cadastrarFilial(@RequestBody FilialRequest request) {
         Filial filial = Filial.builder()
-                .nome(request.getNome())
+                .nome(request.nome())
+                .cidade(request.cidade())
                 .build();
 
         Filial salva = filialRepo.save(filial);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
-                FilialResponse.builder()
-                        .id(salva.getId())
-                        .nome(salva.getNome())
-                        .build()
+                new FilialResponse(salva.getId(), salva.getNome(), salva.getCidade())
         );
     }
 }

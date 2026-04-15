@@ -1,5 +1,5 @@
-# Estágio 1: Build (Maven 3.8.5 com Java 11)
-FROM maven:3.8.5-openjdk-11 AS build
+# Estágio 1: Build (Maven 3.9 com Java 17)
+FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
 # Cache de dependências
@@ -10,8 +10,8 @@ RUN mvn dependency:go-offline
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-# Estágio 2: Runtime (Java 11 - Eclipse Temurin)
-FROM eclipse-temurin:11-jre
+# Estágio 2: Runtime (Java 17 - Eclipse Temurin)
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 # Copia o JAR gerado

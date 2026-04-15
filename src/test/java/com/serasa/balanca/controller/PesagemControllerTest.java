@@ -32,10 +32,7 @@ public class PesagemControllerTest {
         String token = "token-valido";
         AuthController.tokenStore.put(token, System.currentTimeMillis() + 600000);
 
-        TransacaoTransporteRequest request = new TransacaoTransporteRequest();
-        request.setPlate("ABC1234");
-        request.setWeight(50000.0);
-        request.setBalancaId("BAL-01");
+        TransacaoTransporteRequest request = new TransacaoTransporteRequest("BAL-01", "ABC1234", 50000.0);
 
         ResponseEntity<?> response = pesagemController.receber("Bearer " + token, "key-123", request);
 
@@ -45,7 +42,7 @@ public class PesagemControllerTest {
 
     @Test
     public void deveRetornar401QuandoTokenInexistente() {
-        TransacaoTransporteRequest request = new TransacaoTransporteRequest();
+        TransacaoTransporteRequest request = new TransacaoTransporteRequest(null, null, null);
 
         ResponseEntity<?> response = pesagemController.receber("Bearer token-invalido", "key-123", request);
 
@@ -59,7 +56,7 @@ public class PesagemControllerTest {
         String token = "token-expirado";
         AuthController.tokenStore.put(token, System.currentTimeMillis() - 1000);
 
-        TransacaoTransporteRequest request = new TransacaoTransporteRequest();
+        TransacaoTransporteRequest request = new TransacaoTransporteRequest(null, null, null);
 
         ResponseEntity<?> response = pesagemController.receber("Bearer " + token, "key-123", request);
 

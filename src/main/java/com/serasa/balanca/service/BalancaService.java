@@ -1,5 +1,7 @@
 package com.serasa.balanca.service;
 
+import com.serasa.balanca.config.BalancaProperties;
+import com.serasa.balanca.exception.RecursoNaoEncontradoException;
 import com.serasa.balanca.mapper.TransacaoTransporteMapper;
 import com.serasa.balanca.model.entities.Balanca;
 import com.serasa.balanca.model.entities.Caminhao;
@@ -13,10 +15,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.OptionalDouble;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -28,50 +29,39 @@ public class BalancaService {
     private final CaminhaoRepository caminhaoRepo;
     private final BalancaRepository balancaRepo;
     private final TransacaoTransporteMapper transacaoTransporteMapper;
-    private final Map<String, List<Double>> buffer = new ConcurrentHashMap<>();
-    private final Set<String> chavesProcessadas = ConcurrentHashMap.newKeySet();
-    private static final int MINIMO_LEITURAS_ESTABILIZACAO = 5;
-    private static final double TOLERANCIA_PESO_ESTABILIZACAO = 0.5;
-    private static final double MARGEM_LUCRO_PADRAO = 0.15;
-    private static final int SIMULACAO_MINUTOS_INICIO_TRANSACAO = 2;
+    private final PesagemBuffer pesagemBuffer;
+    private final BalancaProperties props;
+
+    private final Map<String, Long> chavesProcessadas = new ConcurrentHashMap<>();
 
     public void processarComIdempotencia(TransacaoTransporteRequest request, String chaveIdempotencia) {
+        long agora = System.currentTimeMillis();
+        long expiracao = props.getTransacao().getExpiracaoChaveMs();
 
-        if (!chavesProcessadas.add(chaveIdempotencia)) {
+        chavesProcessadas.values().removeIf(exp -> agora > exp);
+
+        Long existente = chavesProcessadas.putIfAbsent(chaveIdempotencia, agora + expiracao);
+        if (existente != null) {
             return;
         }
 
-        this.processar(request);
+        OptionalDouble pesoEstavel = pesagemBuffer.registrarLeitura(request.plate(), request.weight());
+        pesoEstavel.ifPresent(peso -> efetivarTransacao(request.balancaId(), request.plate(), peso));
     }
 
-    private void processar(TransacaoTransporteRequest request) {
-        String placa = request.getPlate();
-        Double pesoLeitura = request.getWeight();
-
-        buffer.computeIfAbsent(placa, k -> new ArrayList<>()).add(pesoLeitura);
-        List<Double> historico = buffer.get(placa);
-
-        if (historico.size() >= MINIMO_LEITURAS_ESTABILIZACAO) {
-
-            double ultimoPeso = historico.get(historico.size() - 1);
-            boolean estabilizou = historico.stream()
-                    .skip(historico.size() - MINIMO_LEITURAS_ESTABILIZACAO)
-                    .allMatch(p -> Math.abs(p - ultimoPeso) < TOLERANCIA_PESO_ESTABILIZACAO);
-
-            if (estabilizou) {
-                this.efetivarTransacao(request.getBalancaId(), placa, ultimoPeso);
-                buffer.remove(placa);
-            }
-        }
-    }
-
-    private void efetivarTransacao(String idBalanca, String placa, Double pesoBruto) {
-
+    private void efetivarTransacao(String idBalanca, String placa, double pesoBruto) {
         Balanca balanca = balancaRepo.findById(idBalanca)
-                .orElseThrow(() -> new RuntimeException("Balança não cadastrada!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Balança não encontrada: " + idBalanca));
 
         Caminhao caminhao = caminhaoRepo.findById(placa)
-                .orElseThrow(() -> new RuntimeException("Caminhão não cadastrado!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Caminhão não encontrado: " + placa));
+
+        double tara = caminhao.getTara();
+        double pesoLiquido = pesoBruto - tara;
+        double precoKg = caminhao.getGraoPadrao().getPrecoPorKg();
+        double custo = pesoLiquido * precoKg;
+        double lucro = custo * props.getTransacao().getMargemLucro();
+        int minutosInicio = props.getTransacao().getSimulacaoMinutosInicio();
 
         TransacaoTransporte transacao = TransacaoTransporte.builder()
                 .balanca(balanca)
@@ -79,23 +69,23 @@ public class BalancaService {
                 .filial(caminhao.getFilialPadrao())
                 .tipoGrao(caminhao.getGraoPadrao())
                 .pesoBruto(pesoBruto)
-                .tara(caminhao.getTara())
-                .pesoLiquido(pesoBruto - caminhao.getTara())
-                .dataInicio(LocalDateTime.now().minusMinutes(SIMULACAO_MINUTOS_INICIO_TRANSACAO))
+                .tara(tara)
+                .pesoLiquido(pesoLiquido)
+                .custo(custo)
+                .lucro(lucro)
+                .dataInicio(LocalDateTime.now().minusMinutes(minutosInicio))
                 .dataFim(LocalDateTime.now())
                 .build();
-
-        double precoKg = transacao.getTipoGrao().getPrecoPorKg();
-        transacao.setCusto(transacao.getPesoLiquido() * precoKg);
-        transacao.setLucro(transacao.getCusto() * MARGEM_LUCRO_PADRAO);
 
         transacaoRepo.save(transacao);
     }
 
-    public List<TransacaoTransporteResponse> listarRelatorio(String filial, String placa, String grao, LocalDateTime inicio, LocalDateTime fim) {
+    public List<TransacaoTransporteResponse> listarRelatorio(
+            String filial, String placa, String grao,
+            LocalDateTime inicio, LocalDateTime fim) {
 
-        if (inicio == null) inicio = LocalDateTime.now().withHour(0).withMinute(0);
-        if (fim == null) fim = LocalDateTime.now().withHour(23).withMinute(59);
+        if (inicio == null) inicio = LocalDateTime.now().toLocalDate().atStartOfDay();
+        if (fim == null) fim = LocalDateTime.now().toLocalDate().atTime(23, 59, 59);
 
         List<TransacaoTransporte> transacoes;
 
@@ -109,6 +99,8 @@ public class BalancaService {
             transacoes = transacaoRepo.findByDataFimBetween(inicio, fim);
         }
 
-        return transacoes.stream().map(transacaoTransporteMapper::toResponse).collect(Collectors.toList());
+        return transacoes.stream()
+                .map(transacaoTransporteMapper::toResponse)
+                .collect(Collectors.toList());
     }
 }

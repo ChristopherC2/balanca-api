@@ -23,18 +23,14 @@ public class ProdutoController {
     @PostMapping("/graos")
     public ResponseEntity<TipoGraoResponse> cadastrarGrao(@RequestBody TipoGraoRequest request) {
         TipoGrao grao = TipoGrao.builder()
-                .nome(request.getNome())
-                .precoPorKg(request.getPrecoPorKg())
+                .nome(request.nome())
+                .precoPorKg(request.precoPorKg())
                 .build();
 
         TipoGrao salvo = graoRepo.save(grao);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
-                TipoGraoResponse.builder()
-                        .id(salvo.getId())
-                        .nome(salvo.getNome())
-                        .precoPorKg(salvo.getPrecoPorKg())
-                        .build()
+                new TipoGraoResponse(salvo.getId(), salvo.getNome(), salvo.getPrecoPorKg())
         );
     }
 }

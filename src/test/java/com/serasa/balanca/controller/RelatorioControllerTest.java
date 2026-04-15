@@ -33,13 +33,11 @@ public class RelatorioControllerTest {
         LocalDateTime inicio = LocalDateTime.now().minusDays(1);
         LocalDateTime fim = LocalDateTime.now();
 
-        TransacaoTransporteResponse responseItem = TransacaoTransporteResponse.builder()
-                .placaCaminhao(placa)
-                .nomeFilial(filial)
-                .nomeTipoGrao(grao)
-                .pesoLiquido(35000.0)
-                .custo(87500.0)
-                .build();
+        // TransacaoTransporteResponse(placaCaminhao, nomeFilial, nomeTipoGrao, idBalanca,
+        //                             pesoBruto, tara, pesoLiquido, custo, lucro, dataInicio, dataFim)
+        TransacaoTransporteResponse responseItem = new TransacaoTransporteResponse(
+                placa, filial, grao, null, null, null, 35000.0, 87500.0, null, null, null
+        );
 
         List<TransacaoTransporteResponse> mockList = Arrays.asList(responseItem);
 
@@ -52,7 +50,7 @@ public class RelatorioControllerTest {
         Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
         Assert.assertNotNull(response.getBody());
         Assert.assertEquals(1, response.getBody().size());
-        Assert.assertEquals(placa, response.getBody().get(0).getPlacaCaminhao());
+        Assert.assertEquals(placa, response.getBody().get(0).placaCaminhao());
 
         Mockito.verify(balancaService, Mockito.times(1))
                 .listarRelatorio(filial, placa, grao, inicio, fim);

@@ -32,10 +32,7 @@ public class UnidadeControllerTest {
 
     @Test
     public void deveCadastrarBalancaComSucesso() {
-        BalancaRequest request = new BalancaRequest();
-        request.setId("BAL-01");
-        request.setModelo("Toledo");
-        request.setLocalizacao("Docas");
+        BalancaRequest request = new BalancaRequest("BAL-01", "Toledo", "Docas");
 
         Balanca balancaSalva = Balanca.builder()
                 .id("BAL-01")
@@ -49,14 +46,13 @@ public class UnidadeControllerTest {
 
         Assert.assertEquals(HttpStatus.CREATED, response.getStatusCode());
         Assert.assertNotNull(response.getBody());
-        Assert.assertEquals("BAL-01", response.getBody().getId());
+        Assert.assertEquals("BAL-01", response.getBody().id());
         Mockito.verify(balancaRepo, Mockito.times(1)).save(Mockito.any(Balanca.class));
     }
 
     @Test
     public void deveCadastrarFilialComSucesso() {
-        FilialRequest request = new FilialRequest();
-        request.setNome("Filial Norte");
+        FilialRequest request = new FilialRequest("Filial Norte", null);
 
         Filial filialSalva = Filial.builder()
                 .id(1L)
@@ -69,8 +65,8 @@ public class UnidadeControllerTest {
 
         Assert.assertEquals(HttpStatus.CREATED, response.getStatusCode());
         Assert.assertNotNull(response.getBody());
-        Assert.assertEquals(Long.valueOf(1L), response.getBody().getId());
-        Assert.assertEquals("Filial Norte", response.getBody().getNome());
+        Assert.assertEquals(Long.valueOf(1L), response.getBody().id());
+        Assert.assertEquals("Filial Norte", response.getBody().nome());
         Mockito.verify(filialRepo, Mockito.times(1)).save(Mockito.any(Filial.class));
     }
 }
