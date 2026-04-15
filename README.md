@@ -6,7 +6,7 @@ API REST desenvolvida em **Java 11 + Spring Boot 2.6** para gerenciamento de pes
 
 ## 🚀 Tecnologias Utilizadas
 
-* **Java 11**
+* **Java 17**
 * **Spring Boot 2.6.x**
 * **Spring Data JPA**
 * **H2 Database** (In-memory)
